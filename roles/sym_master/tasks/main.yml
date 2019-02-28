@@ -1,0 +1,51 @@
+---
+- name: "Setting CloudFlare DNS Record"
+  include_role:
+    name: cloudflare
+  vars:
+    subdomain: sym-master
+
+- name: Stop and remove any existing container
+  docker_container:
+    name: sym-master
+    state: absent
+
+- name: Create opt directory
+  file: "path={{item}} state=directory mode=0775 owner={{user}} group={{user}}"
+  with_items:
+    - /opt/sym-master
+    - /opt/sym-master/engines
+    - /opt/sym-master/tmp
+    - /opt/sym-master/conf
+    - /opt/sym-master/security
+
+- name: Create and start container
+  docker_container:
+    name: sym-master
+    image: jumpmind/symmetricds:latest
+    pull: yes
+    published_ports:
+      - "127.0.0.1:31415:31415"
+    env:
+      VIRTUAL_HOST: "sym-master.{{domain}}"
+      VIRTUAL_PORT: 31415
+      LETSENCRYPT_HOST: "sym-master.{{domain}}"
+      LETSENCRYPT_EMAIL: "{{email}}"
+    volumes:
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/opt/sym-master/engines:/opt/symmetric-ds/engines"
+      - "/opt/sym-master/tmp:/opt/symmetric-ds/tmp"
+      - "/opt/sym-master/conf:/opt/symmetric-ds/conf"
+      - "/opt/sym-master/security:/opt/symmetric-ds/security"
+      - "/opt/plex:/opt/plex"
+      - "/opt/sonarr:/opt/sonarr"
+      - "/opt/radarr:/opt/radarr"
+    labels:
+      "com.github.cloudbox.cloudbox_managed": "true"
+    user: "{{uid}}:{{gid}}"
+    networks:
+      - name: cloudbox
+        aliases:
+          - sym-master
+    restart_policy: always
+    state: started
